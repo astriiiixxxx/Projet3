@@ -1,0 +1,33 @@
+# OS
+.DS_Store
+
+# Logs
+*.log
+
+# Environment variables
+.env
+.env.local
+
+
+# Node / React
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+
+# Java / Spring Boot
+backend/target/
+backend/.mvn/wrapper/maven-wrapper.jar
+
+# Maven
+.mvn/
+*.class
+
+# Coverage
+coverage/
+
+# Build
+build/
+
+# Mac
+.AppleDouble
+.LSOverride
