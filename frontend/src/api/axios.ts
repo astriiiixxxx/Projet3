@@ -10,8 +10,12 @@ export const apiClient = axios.create({
 
 apiClient.interceptors.request.use((config) => {
   const token = authStorage.getToken();
+  const url = config.url ?? "";
 
-  if (token) {
+  const isPublicAuthRoute =
+    url.includes("/auth/login") || url.includes("/auth/register");
+
+  if (token && !isPublicAuthRoute) {
     config.headers.Authorization = `Bearer ${token}`;
   }
 

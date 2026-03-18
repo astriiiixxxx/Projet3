@@ -35,7 +35,10 @@ public class AuthService {
     public UserResponse register(RegisterRequest request) {
         String normalizedEmail = request.email().trim().toLowerCase();
 
+        System.out.println("REGISTER START: " + normalizedEmail);
+
         if (userRepository.existsByEmail(normalizedEmail)) {
+            System.out.println("EMAIL ALREADY EXISTS");
             throw new IllegalArgumentException("cet email est déjà utilisé");
         }
 
@@ -43,7 +46,9 @@ public class AuthService {
         user.setEmail(normalizedEmail);
         user.setPasswordHash(passwordEncoder.encode(request.password()));
 
+        System.out.println("BEFORE SAVE");
         User savedUser = userRepository.save(user);
+        System.out.println("AFTER SAVE: " + savedUser.getId());
 
         return new UserResponse(savedUser.getId(), savedUser.getEmail());
     }

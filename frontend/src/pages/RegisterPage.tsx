@@ -11,7 +11,9 @@ export default function RegisterPage() {
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
-  const handleSubmit = async (event: React.FormEvent) => {
+  const handleSubmit: React.FormEventHandler<HTMLFormElement> = async (
+    event
+  ) => {
     event.preventDefault();
     setError("");
     setIsLoading(true);
@@ -19,8 +21,15 @@ export default function RegisterPage() {
     try {
       await register({ email, password });
       navigate("/login");
-    } catch {
-      setError("Impossible de créer le compte.");
+    } catch (error: any) {
+      console.error("REGISTER ERROR", error?.response?.data);
+
+      setError(
+        error?.response?.data?.message ??
+          error?.response?.data?.fields?.email ??
+          error?.response?.data?.fields?.password ??
+          "Impossible de créer le compte."
+      );
     } finally {
       setIsLoading(false);
     }
