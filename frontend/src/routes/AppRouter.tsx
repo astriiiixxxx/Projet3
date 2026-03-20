@@ -2,7 +2,7 @@ import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import LoginPage from "../pages/LoginPage";
 import RegisterPage from "../pages/RegisterPage";
 import MySpacePage from "../pages/MySpacePage";
-import UploadPage from "../pages/UploadPage";
+import UploadPage  from "../pages/UploadPage";
 import DownloadPage from "../pages/DownloadPage";
 import { ProtectedRoute } from "../components/ProtectedRoute";
 

@@ -12,7 +12,17 @@ export type UploadFileResponse = {
     originalFilename: string;
     mimeType: string;
     size: number;
+    createdAt: string;
     expiresAt: string;
-    passwordProtected: boolean;
     expired: boolean;
+    passwordProtected: boolean;
+    downloadUrl: string;
+  };
+  
+  export type ApiErrorResponse = {
+    timestamp: string;
+    status: number;
+    error: string;
+    message: string;
+    path: string;
   };

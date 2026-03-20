@@ -1,18 +1,25 @@
 package com.datashare.backend.service;
 
 import com.datashare.backend.config.FileStorageProperties;
-import com.datashare.backend.dto.UploadFileResponse;
+import com.datashare.backend.dto.PublicFileResponse;
 import com.datashare.backend.entity.StoredFile;
-import com.datashare.backend.entity.User;
+import com.datashare.backend.exception.InvalidFilePasswordException;
 import com.datashare.backend.repository.StoredFileRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
+import org.mockito.ArgumentCaptor;
+import org.springframework.core.io.ByteArrayResource;
+import org.springframework.core.io.Resource;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.util.ReflectionTestUtils;
-import org.springframework.web.multipart.MultipartFile;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+
+import java.time.LocalDateTime;
+import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
@@ -30,197 +37,144 @@ class FileServiceTest {
     private PasswordEncoder passwordEncoder;
 
     @Mock
-    private MultipartFile multipartFile;
-
     private FileStorageProperties properties;
+
+    @InjectMocks
     private FileService fileService;
 
     @BeforeEach
     void setUp() {
-        properties = new FileStorageProperties();
-        properties.setUploadDir("uploads");
-        properties.setMaxSizeBytes(10_000_000L);
-        properties.setDefaultExpirationDays(7);
-        properties.setMaxExpirationDays(7);
-
-        fileService = new FileService(
-                storedFileRepository,
-                fileStorageService,
-                passwordEncoder,
-                properties
-        );
-
-        ReflectionTestUtils.setField(fileService, "publicBaseUrl", "http://localhost:3000");
+        ReflectionTestUtils.setField(fileService, "publicBaseUrl", "http://localhost:5173");
     }
 
     @Test
-    void shouldUploadFileSuccessfully() {
-        User owner = new User();
-        owner.setId(1L);
+    void getPublicFile_shouldReturnPasswordProtectedFalse_whenFileIsNotProtected() {
+        StoredFile storedFile = buildStoredFile(false);
 
-        when(multipartFile.isEmpty()).thenReturn(false);
-        when(multipartFile.getSize()).thenReturn(1234L);
-        when(multipartFile.getOriginalFilename()).thenReturn("test.pdf");
-        when(multipartFile.getContentType()).thenReturn("application/pdf");
-        when(fileStorageService.store(multipartFile)).thenReturn("uuid-test.pdf");
+        when(storedFileRepository.findByDownloadToken("token-123"))
+            .thenReturn(Optional.of(storedFile));
 
-        when(storedFileRepository.save(any(StoredFile.class))).thenAnswer(invocation -> {
-            StoredFile file = invocation.getArgument(0);
-            ReflectionTestUtils.setField(file, "id", 1L);
-            return file;
-        });
-
-        UploadFileResponse response = fileService.upload(multipartFile, 7, null, owner);
+        PublicFileResponse response = fileService.getPublicFile("token-123");
 
         assertNotNull(response);
-        assertEquals("test.pdf", response.getOriginalFilename());
-        assertEquals("http://localhost:3000/download/" + response.getDownloadToken(), response.getDownloadUrl());
         assertFalse(response.isPasswordProtected());
-
-        verify(fileStorageService).store(multipartFile);
-        verify(storedFileRepository).save(any(StoredFile.class));
+        assertEquals("document.pdf", response.getOriginalFilename());
+        assertEquals("/api/files/download/token-123", response.getDownloadUrl());
     }
 
     @Test
-    void shouldHashPasswordWhenProvided() {
-        User owner = new User();
-        owner.setId(1L);
+    void getPublicFile_shouldReturnPasswordProtectedTrue_whenFileIsProtected() {
+        StoredFile storedFile = buildStoredFile(true);
 
-        when(multipartFile.isEmpty()).thenReturn(false);
-        when(multipartFile.getSize()).thenReturn(1234L);
-        when(multipartFile.getOriginalFilename()).thenReturn("test.pdf");
-        when(multipartFile.getContentType()).thenReturn("application/pdf");
-        when(fileStorageService.store(multipartFile)).thenReturn("uuid-test.pdf");
-        when(passwordEncoder.encode("secret123")).thenReturn("hashed-password");
+        when(storedFileRepository.findByDownloadToken("token-123"))
+            .thenReturn(Optional.of(storedFile));
 
-        when(storedFileRepository.save(any(StoredFile.class))).thenAnswer(invocation -> {
-            StoredFile file = invocation.getArgument(0);
-            ReflectionTestUtils.setField(file, "id", 1L);
-            return file;
-        });
+        PublicFileResponse response = fileService.getPublicFile("token-123");
 
-        UploadFileResponse response = fileService.upload(multipartFile, 7, "secret123", owner);
-
+        assertNotNull(response);
         assertTrue(response.isPasswordProtected());
-        verify(passwordEncoder).encode("secret123");
     }
 
     @Test
-    void shouldUseDefaultExpirationWhenNull() {
-        User owner = new User();
-        owner.setId(1L);
+    void downloadFile_shouldSucceedWithoutPassword_whenFileIsNotProtected() {
+        StoredFile storedFile = buildStoredFile(false);
+        Resource resource = new ByteArrayResource("hello".getBytes());
 
-        when(multipartFile.isEmpty()).thenReturn(false);
-        when(multipartFile.getSize()).thenReturn(1234L);
-        when(multipartFile.getOriginalFilename()).thenReturn("test.pdf");
-        when(multipartFile.getContentType()).thenReturn("application/pdf");
-        when(fileStorageService.store(multipartFile)).thenReturn("uuid-test.pdf");
+        when(storedFileRepository.findByDownloadToken("token-123"))
+            .thenReturn(Optional.of(storedFile));
+        when(fileStorageService.loadAsResource("stored-document.pdf"))
+            .thenReturn(resource);
 
-        when(storedFileRepository.save(any(StoredFile.class))).thenAnswer(invocation -> {
-            StoredFile file = invocation.getArgument(0);
-            ReflectionTestUtils.setField(file, "id", 1L);
-            return file;
-        });
+        ResponseEntity<Resource> response = fileService.downloadFile("token-123", null);
 
-        UploadFileResponse response = fileService.upload(multipartFile, null, null, owner);
-
-        assertNotNull(response.getExpiresAt());
+        assertEquals(200, response.getStatusCode().value());
+        assertNotNull(response.getBody());
+        verify(passwordEncoder, never()).matches(anyString(), anyString());
     }
 
     @Test
-    void shouldRejectEmptyFile() {
-        User owner = new User();
-        owner.setId(1L);
+    void downloadFile_shouldSucceedWithCorrectPassword_whenFileIsProtected() {
+        StoredFile storedFile = buildStoredFile(true);
+        Resource resource = new ByteArrayResource("hello".getBytes());
 
-        when(multipartFile.isEmpty()).thenReturn(true);
+        when(storedFileRepository.findByDownloadToken("token-123"))
+            .thenReturn(Optional.of(storedFile));
+        when(passwordEncoder.matches("secret123", "hashed-password"))
+            .thenReturn(true);
+        when(fileStorageService.loadAsResource("stored-document.pdf"))
+            .thenReturn(resource);
 
-        RuntimeException exception = assertThrows(RuntimeException.class, () ->
-                fileService.upload(multipartFile, 7, null, owner)
+        ResponseEntity<Resource> response = fileService.downloadFile("token-123", "secret123");
+
+        assertEquals(200, response.getStatusCode().value());
+        assertNotNull(response.getBody());
+        verify(passwordEncoder).matches("secret123", "hashed-password");
+    }
+
+    @Test
+    void downloadFile_shouldThrowInvalidFilePasswordException_whenPasswordIsMissing() {
+        StoredFile storedFile = buildStoredFile(true);
+
+        when(storedFileRepository.findByDownloadToken("token-123"))
+            .thenReturn(Optional.of(storedFile));
+
+        InvalidFilePasswordException exception = assertThrows(
+            InvalidFilePasswordException.class,
+            () -> fileService.downloadFile("token-123", null)
         );
 
-        assertEquals("Le fichier est obligatoire.", exception.getMessage());
-        verify(fileStorageService, never()).store(any());
+        assertEquals("Le mot de passe est requis pour télécharger ce fichier.", exception.getMessage());
+        verify(fileStorageService, never()).loadAsResource(anyString());
     }
 
     @Test
-    void shouldRejectForbiddenExtension() {
-        User owner = new User();
-        owner.setId(1L);
+    void downloadFile_shouldThrowInvalidFilePasswordException_whenPasswordIsBlank() {
+        StoredFile storedFile = buildStoredFile(true);
 
-        when(multipartFile.isEmpty()).thenReturn(false);
-        when(multipartFile.getSize()).thenReturn(1234L);
-        when(multipartFile.getOriginalFilename()).thenReturn("virus.exe");
+        when(storedFileRepository.findByDownloadToken("token-123"))
+            .thenReturn(Optional.of(storedFile));
 
-        RuntimeException exception = assertThrows(RuntimeException.class, () ->
-                fileService.upload(multipartFile, 7, null, owner)
+        InvalidFilePasswordException exception = assertThrows(
+            InvalidFilePasswordException.class,
+            () -> fileService.downloadFile("token-123", "   ")
         );
 
-        assertEquals("Ce type de fichier est interdit.", exception.getMessage());
-        verify(fileStorageService, never()).store(any());
+        assertEquals("Le mot de passe est requis pour télécharger ce fichier.", exception.getMessage());
+        verify(fileStorageService, never()).loadAsResource(anyString());
     }
 
     @Test
-    void shouldRejectTooLargeFile() {
-        User owner = new User();
-        owner.setId(1L);
+    void downloadFile_shouldThrowInvalidFilePasswordException_whenPasswordIsIncorrect() {
+        StoredFile storedFile = buildStoredFile(true);
 
-        when(multipartFile.isEmpty()).thenReturn(false);
-        when(multipartFile.getSize()).thenReturn(99_999_999L);
+        when(storedFileRepository.findByDownloadToken("token-123"))
+            .thenReturn(Optional.of(storedFile));
+        when(passwordEncoder.matches("wrong-password", "hashed-password"))
+            .thenReturn(false);
 
-        RuntimeException exception = assertThrows(RuntimeException.class, () ->
-                fileService.upload(multipartFile, 7, null, owner)
+        InvalidFilePasswordException exception = assertThrows(
+            InvalidFilePasswordException.class,
+            () -> fileService.downloadFile("token-123", "wrong-password")
         );
 
-        assertEquals("Le fichier dépasse la taille maximale autorisée.", exception.getMessage());
-        verify(fileStorageService, never()).store(any());
+        assertEquals("Mot de passe invalide.", exception.getMessage());
+        verify(fileStorageService, never()).loadAsResource(anyString());
     }
 
-    @Test
-    void shouldRejectShortPassword() {
-        User owner = new User();
-        owner.setId(1L);
+    private StoredFile buildStoredFile(boolean passwordProtected) {
+        StoredFile storedFile = new StoredFile();
+        storedFile.setOriginalFilename("document.pdf");
+        storedFile.setStoredFilename("stored-document.pdf");
+        storedFile.setMimeType("application/pdf");
+        storedFile.setSize(1234L);
+        storedFile.setDownloadToken("token-123");
+        storedFile.setCreatedAt(LocalDateTime.now().minusHours(1));
+        storedFile.setExpiresAt(LocalDateTime.now().plusDays(1));
 
-        when(multipartFile.isEmpty()).thenReturn(false);
-        when(multipartFile.getSize()).thenReturn(1234L);
-        when(multipartFile.getOriginalFilename()).thenReturn("test.pdf");
+        if (passwordProtected) {
+            storedFile.setPasswordHash("hashed-password");
+        }
 
-        RuntimeException exception = assertThrows(RuntimeException.class, () ->
-                fileService.upload(multipartFile, 7, "123", owner)
-        );
-
-        assertEquals("Le mot de passe doit contenir au moins 6 caractères.", exception.getMessage());
-        verify(fileStorageService, never()).store(any());
-    }
-
-    @Test
-    void shouldRejectExpirationBelowRange() {
-        User owner = new User();
-        owner.setId(1L);
-
-        when(multipartFile.isEmpty()).thenReturn(false);
-        when(multipartFile.getSize()).thenReturn(1234L);
-        when(multipartFile.getOriginalFilename()).thenReturn("test.pdf");
-
-        RuntimeException exception = assertThrows(RuntimeException.class, () ->
-                fileService.upload(multipartFile, 0, null, owner)
-        );
-
-        assertEquals("La durée d'expiration doit être comprise entre 1 et 7 jours.", exception.getMessage());
-    }
-
-    @Test
-    void shouldRejectExpirationAboveRange() {
-        User owner = new User();
-        owner.setId(1L);
-
-        when(multipartFile.isEmpty()).thenReturn(false);
-        when(multipartFile.getSize()).thenReturn(1234L);
-        when(multipartFile.getOriginalFilename()).thenReturn("test.pdf");
-
-        RuntimeException exception = assertThrows(RuntimeException.class, () ->
-                fileService.upload(multipartFile, 8, null, owner)
-        );
-
-        assertEquals("La durée d'expiration doit être comprise entre 1 et 7 jours.", exception.getMessage());
+        return storedFile;
     }
 }

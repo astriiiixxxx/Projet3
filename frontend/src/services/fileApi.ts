@@ -25,9 +25,29 @@ export async function uploadFile(
   return response.data;
 }
 
-export async function getPublicFile(token: string): Promise<PublicFileResponse> {
+export async function getPublicFile(
+  token: string
+): Promise<PublicFileResponse> {
   const response = await apiClient.get<PublicFileResponse>(
     `/files/public/${token}`
   );
+  return response.data;
+}
+
+export async function downloadPublicFile(
+  token: string,
+  password?: string
+): Promise<Blob> {
+  const headers: Record<string, string> = {};
+
+  if (password && password.trim()) {
+    headers["X-File-Password"] = password;
+  }
+
+  const response = await apiClient.get(`/files/download/${token}`, {
+    responseType: "blob",
+    headers,
+  });
+
   return response.data;
 }

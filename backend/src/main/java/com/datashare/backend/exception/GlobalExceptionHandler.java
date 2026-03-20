@@ -63,6 +63,18 @@ public class GlobalExceptionHandler {
         );
     }
 
+    @ExceptionHandler(InvalidFilePasswordException.class)
+    public ResponseEntity<Map<String, Object>> handleInvalidFilePassword(
+        InvalidFilePasswordException ex,
+        HttpServletRequest request
+    ) {
+        return buildErrorResponse(
+            HttpStatus.UNAUTHORIZED,
+            ex.getMessage(),
+            request.getRequestURI()
+        );
+    }
+
     @ExceptionHandler(DataIntegrityViolationException.class)
     public ResponseEntity<Map<String, Object>> handleDataIntegrityViolation(
         DataIntegrityViolationException ex,
@@ -71,6 +83,30 @@ public class GlobalExceptionHandler {
         return buildErrorResponse(
             HttpStatus.CONFLICT,
             "conflit de données en base. Vérifie notamment si l'email existe déjà.",
+            request.getRequestURI()
+        );
+    }
+
+    @ExceptionHandler(FileNotFoundException.class)
+    public ResponseEntity<Map<String, Object>> handleFileNotFound(
+        FileNotFoundException ex,
+        HttpServletRequest request
+    ) {
+        return buildErrorResponse(
+            HttpStatus.NOT_FOUND,
+            ex.getMessage(),
+            request.getRequestURI()
+        );
+    }
+
+    @ExceptionHandler(FileExpiredException.class)
+    public ResponseEntity<Map<String, Object>> handleFileExpired(
+        FileExpiredException ex,
+        HttpServletRequest request
+    ) {
+        return buildErrorResponse(
+            HttpStatus.GONE,
+            ex.getMessage(),
             request.getRequestURI()
         );
     }

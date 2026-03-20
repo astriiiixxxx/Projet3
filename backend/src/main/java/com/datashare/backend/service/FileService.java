@@ -1,15 +1,25 @@
 package com.datashare.backend.service;
 
 import com.datashare.backend.config.FileStorageProperties;
+import com.datashare.backend.dto.PublicFileResponse;
 import com.datashare.backend.dto.UploadFileResponse;
 import com.datashare.backend.entity.StoredFile;
 import com.datashare.backend.entity.User;
+import com.datashare.backend.exception.FileExpiredException;
+import com.datashare.backend.exception.FileNotFoundException;
+import com.datashare.backend.exception.InvalidFilePasswordException;
 import com.datashare.backend.repository.StoredFileRepository;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.io.Resource;
+import org.springframework.http.ContentDisposition;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Set;
@@ -19,7 +29,7 @@ import java.util.UUID;
 public class FileService {
 
     private static final Set<String> FORBIDDEN_EXTENSIONS = Set.of(
-            ".exe", ".bat", ".cmd", ".sh", ".msi", ".js"
+        ".exe", ".bat", ".cmd", ".sh", ".msi", ".js"
     );
 
     private final StoredFileRepository storedFileRepository;
@@ -27,14 +37,14 @@ public class FileService {
     private final PasswordEncoder passwordEncoder;
     private final FileStorageProperties properties;
 
-    @Value("${app.public-base-url:http://localhost:3000}")
+    @Value("${app.public-base-url:http://localhost:5173}")
     private String publicBaseUrl;
 
     public FileService(
-            StoredFileRepository storedFileRepository,
-            FileStorageService fileStorageService,
-            PasswordEncoder passwordEncoder,
-            FileStorageProperties properties
+        StoredFileRepository storedFileRepository,
+        FileStorageService fileStorageService,
+        PasswordEncoder passwordEncoder,
+        FileStorageProperties properties
     ) {
         this.storedFileRepository = storedFileRepository;
         this.fileStorageService = fileStorageService;
@@ -69,13 +79,13 @@ public class FileService {
         String downloadUrl = publicBaseUrl + "/download/" + saved.getDownloadToken();
 
         return new UploadFileResponse(
-                saved.getId(),
-                saved.getOriginalFilename(),
-                saved.getDownloadToken(),
-                downloadUrl,
-                saved.getCreatedAt(),
-                saved.getExpiresAt(),
-                saved.isProtected()
+            saved.getId(),
+            saved.getOriginalFilename(),
+            saved.getDownloadToken(),
+            downloadUrl,
+            saved.getCreatedAt(),
+            saved.getExpiresAt(),
+            saved.isProtected()
         );
     }
 
@@ -85,7 +95,7 @@ public class FileService {
 
     public void deleteMyFile(Long fileId, User owner) {
         StoredFile file = storedFileRepository.findById(fileId)
-                .orElseThrow(() -> new RuntimeException("Fichier introuvable."));
+            .orElseThrow(() -> new RuntimeException("Fichier introuvable."));
 
         if (!file.getOwner().getId().equals(owner.getId())) {
             throw new RuntimeException("Accès interdit à ce fichier.");
@@ -93,6 +103,76 @@ public class FileService {
 
         fileStorageService.delete(file.getStoredFilename());
         storedFileRepository.delete(file);
+    }
+
+    public PublicFileResponse getPublicFile(String token) {
+        StoredFile storedFile = getValidStoredFileByToken(token);
+
+        return new PublicFileResponse(
+            storedFile.getOriginalFilename(),
+            storedFile.getMimeType(),
+            storedFile.getSize(),
+            storedFile.getCreatedAt(),
+            storedFile.getExpiresAt(),
+            storedFile.isExpired(),
+            storedFile.isProtected(),
+            "/api/files/download/" + storedFile.getDownloadToken()
+        );
+    }
+
+    public ResponseEntity<Resource> downloadFile(String token, String password) {
+        StoredFile storedFile = getValidStoredFileByToken(token);
+        validateDownloadPassword(storedFile, password);
+
+        Resource resource = fileStorageService.loadAsResource(storedFile.getStoredFilename());
+
+        MediaType mediaType;
+        try {
+            mediaType = storedFile.getMimeType() != null && !storedFile.getMimeType().isBlank()
+                ? MediaType.parseMediaType(storedFile.getMimeType())
+                : MediaType.APPLICATION_OCTET_STREAM;
+        } catch (Exception e) {
+            mediaType = MediaType.APPLICATION_OCTET_STREAM;
+        }
+
+        ContentDisposition contentDisposition = ContentDisposition.attachment()
+            .filename(storedFile.getOriginalFilename(), StandardCharsets.UTF_8)
+            .build();
+
+        return ResponseEntity.ok()
+            .contentType(mediaType)
+            .contentLength(storedFile.getSize())
+            .header(HttpHeaders.CONTENT_DISPOSITION, contentDisposition.toString())
+            .body(resource);
+    }
+
+    private void validateDownloadPassword(StoredFile storedFile, String password) {
+        if (!storedFile.isProtected()) {
+            return;
+        }
+
+        if (password == null || password.isBlank()) {
+            throw new InvalidFilePasswordException("Le mot de passe est requis pour télécharger ce fichier.");
+        }
+
+        if (!passwordEncoder.matches(password, storedFile.getPasswordHash())) {
+            throw new InvalidFilePasswordException("Mot de passe invalide.");
+        }
+    }
+
+    private StoredFile getValidStoredFileByToken(String token) {
+        if (token == null || token.isBlank()) {
+            throw new FileNotFoundException("Lien de téléchargement invalide.");
+        }
+
+        StoredFile storedFile = storedFileRepository.findByDownloadToken(token)
+            .orElseThrow(() -> new FileNotFoundException("Aucun fichier trouvé pour ce lien."));
+
+        if (storedFile.getExpiresAt() != null && storedFile.getExpiresAt().isBefore(LocalDateTime.now())) {
+            throw new FileExpiredException("Ce lien de téléchargement a expiré.");
+        }
+
+        return storedFile;
     }
 
     private void validateFile(MultipartFile file) {

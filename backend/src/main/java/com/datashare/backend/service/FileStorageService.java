@@ -1,11 +1,15 @@
 package com.datashare.backend.service;
 
 import com.datashare.backend.config.FileStorageProperties;
+import com.datashare.backend.exception.FileNotFoundException;
+import org.springframework.core.io.Resource;
+import org.springframework.core.io.UrlResource;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
+import java.net.MalformedURLException;
 import java.nio.file.*;
 import java.util.UUID;
 
@@ -35,6 +39,21 @@ public class FileStorageService {
 
     public Path resolve(String storedFilename) {
         return uploadPath.resolve(storedFilename).normalize();
+    }
+
+    public Resource loadAsResource(String storedFilename) {
+        try {
+            Path filePath = resolve(storedFilename);
+            Resource resource = new UrlResource(filePath.toUri());
+
+            if (!resource.exists() || !resource.isReadable()) {
+                throw new FileNotFoundException("Le fichier physique est introuvable.");
+            }
+
+            return resource;
+        } catch (MalformedURLException e) {
+            throw new FileNotFoundException("Impossible de charger le fichier.");
+        }
     }
 
     public void delete(String storedFilename) {
