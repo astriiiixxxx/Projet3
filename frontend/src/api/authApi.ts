@@ -1,5 +1,9 @@
 import { apiClient } from "./axios";
-import type { LoginRequest, LoginResponse, RegisterRequest } from "../types/auth";
+import type {
+  LoginRequest,
+  LoginResponse,
+  RegisterRequest,
+} from "../types/auth";
 
 export const authApi = {
   async register(payload: RegisterRequest) {

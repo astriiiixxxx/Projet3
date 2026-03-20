@@ -1,5 +1,5 @@
 import { apiClient } from "../api/axios";
-import type { UploadFileResponse } from "../types/file";
+import type { PublicFileResponse, UploadFileResponse } from "../types/file";
 
 type UploadFileParams = {
   file: File;
@@ -22,6 +22,12 @@ export async function uploadFile(
   }
 
   const response = await apiClient.post<UploadFileResponse>("/files", formData);
+  return response.data;
+}
 
+export async function getPublicFile(token: string): Promise<PublicFileResponse> {
+  const response = await apiClient.get<PublicFileResponse>(
+    `/files/public/${token}`
+  );
   return response.data;
 }

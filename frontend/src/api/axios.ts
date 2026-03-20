@@ -3,15 +3,16 @@ import { authStorage } from "../authStorage";
 
 export const apiClient = axios.create({
   baseURL: "http://localhost:8000/api",
-  headers: {
-    "Content-Type": "application/json",
-  },
 });
 
 apiClient.interceptors.request.use((config) => {
   const token = authStorage.getToken();
+  const url = config.url ?? "";
 
-  if (token) {
+  const isPublicAuthRoute =
+    url.includes("/auth/login") || url.includes("/auth/register");
+
+  if (token && !isPublicAuthRoute) {
     config.headers.Authorization = `Bearer ${token}`;
   }
 

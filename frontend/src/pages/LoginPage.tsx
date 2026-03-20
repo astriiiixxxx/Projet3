@@ -11,7 +11,9 @@ export default function LoginPage() {
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
-  const handleSubmit = async (event: React.FormEvent) => {
+  const handleSubmit: React.SubmitEventHandler<HTMLFormElement> = async (
+    event
+  ) => {
     event.preventDefault();
     setError("");
     setIsLoading(true);
@@ -19,11 +21,27 @@ export default function LoginPage() {
     try {
       await login({ email, password });
       navigate("/my-space");
-    } catch {
-      setError("Email ou mot de passe invalide.");
+    } catch (error: any) {
+      console.error("LOGIN ERROR", error?.response?.data);
+
+      setError(
+        error?.response?.data?.message ?? "Email ou mot de passe invalide."
+      );
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const handleEmailChange: React.ChangeEventHandler<HTMLInputElement> = (
+    event
+  ) => {
+    setEmail(event.target.value);
+  };
+
+  const handlePasswordChange: React.ChangeEventHandler<HTMLInputElement> = (
+    event
+  ) => {
+    setPassword(event.target.value);
   };
 
   return (
@@ -37,7 +55,7 @@ export default function LoginPage() {
             id="email"
             type="email"
             value={email}
-            onChange={(event) => setEmail(event.target.value)}
+            onChange={handleEmailChange}
             required
           />
         </div>
@@ -48,7 +66,7 @@ export default function LoginPage() {
             id="password"
             type="password"
             value={password}
-            onChange={(event) => setPassword(event.target.value)}
+            onChange={handlePasswordChange}
             required
           />
         </div>

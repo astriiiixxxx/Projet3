@@ -1,3 +1,5 @@
+import { UploadForm } from "../components/files/UploadForm";
+
 export default function UploadPage() {
-    return <div>Upload page</div>;
+    return <div><UploadForm /></div>;
   }

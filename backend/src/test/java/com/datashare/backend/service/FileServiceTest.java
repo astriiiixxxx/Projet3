@@ -8,13 +8,11 @@ import com.datashare.backend.repository.StoredFileRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.*;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.web.multipart.MultipartFile;
-import org.mockito.junit.jupiter.MockitoExtension;
-
-import java.time.LocalDateTime;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
@@ -162,20 +160,20 @@ class FileServiceTest {
     }
 
     @Test
-void shouldRejectTooLargeFile() {
-    User owner = new User();
-    owner.setId(1L);
+    void shouldRejectTooLargeFile() {
+        User owner = new User();
+        owner.setId(1L);
 
-    when(multipartFile.isEmpty()).thenReturn(false);
-    when(multipartFile.getSize()).thenReturn(99_999_999L);
+        when(multipartFile.isEmpty()).thenReturn(false);
+        when(multipartFile.getSize()).thenReturn(99_999_999L);
 
-    RuntimeException exception = assertThrows(RuntimeException.class, () ->
-            fileService.upload(multipartFile, 7, null, owner)
-    );
+        RuntimeException exception = assertThrows(RuntimeException.class, () ->
+                fileService.upload(multipartFile, 7, null, owner)
+        );
 
-    assertEquals("Le fichier dépasse la taille maximale autorisée.", exception.getMessage());
-    verify(fileStorageService, never()).store(any());
-}
+        assertEquals("Le fichier dépasse la taille maximale autorisée.", exception.getMessage());
+        verify(fileStorageService, never()).store(any());
+    }
 
     @Test
     void shouldRejectShortPassword() {
