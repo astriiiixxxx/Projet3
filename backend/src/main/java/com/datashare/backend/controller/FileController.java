@@ -1,5 +1,6 @@
 package com.datashare.backend.controller;
 
+import com.datashare.backend.dto.FileHistoryResponse;
 import com.datashare.backend.dto.PublicFileResponse;
 import com.datashare.backend.dto.UploadFileResponse;
 import com.datashare.backend.entity.User;
@@ -10,6 +11,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
+
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/files")
@@ -30,13 +33,15 @@ public class FileController {
         @RequestParam(value = "password", required = false) String password,
         Authentication authentication
     ) {
-        String email = authentication.getName();
-
-        User currentUser = userRepository.findByEmail(email)
-            .orElseThrow(() -> new RuntimeException("Utilisateur introuvable."));
-
+        User currentUser = getCurrentUser(authentication);
         UploadFileResponse response = fileService.upload(file, expirationDays, password, currentUser);
         return ResponseEntity.ok(response);
+    }
+
+    @GetMapping
+    public ResponseEntity<List<FileHistoryResponse>> getMyFiles(Authentication authentication) {
+        User currentUser = getCurrentUser(authentication);
+        return ResponseEntity.ok(fileService.getMyFiles(currentUser));
     }
 
     @GetMapping("/public/{token}")
@@ -50,5 +55,12 @@ public class FileController {
         @RequestHeader(value = "X-File-Password", required = false) String password
     ) {
         return fileService.downloadFile(token, password);
+    }
+
+    private User getCurrentUser(Authentication authentication) {
+        String email = authentication.getName();
+
+        return userRepository.findByEmail(email)
+            .orElseThrow(() -> new RuntimeException("Utilisateur introuvable."));
     }
 }

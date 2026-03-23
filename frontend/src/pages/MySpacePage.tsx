@@ -1,103 +1,104 @@
-import { useState } from "react";
-import { AppButton } from "../components/ui/AppButton";
-import { AppCallout } from "../components/ui/AppCallout";
-import { AppHeader } from "../components/ui/AppHeader";
-import { AppSegmentedControl } from "../components/ui/AppSegmentedControl";
-import { AppSelect } from "../components/ui/AppSelect";
-import { AppTextField } from "../components/ui/AppTextField";
-import type { Key } from "react-aria";
+import { useEffect, useState } from "react";
+import { getMyFiles } from "../services/fileApi";
+import type { FileHistoryResponse } from "../types/file";
 
-const expirationOptions = [
-  { id: "1d", label: "Une journée" },
-  { id: "7d", label: "7 jours" },
-  { id: "30d", label: "30 jours" },
-];
+function formatDate(value: string): string {
+  const date = new Date(value);
 
-const filterItems = [
-  { id: "all", label: "Tous" },
-  { id: "active", label: "Actifs" },
-  { id: "expired", label: "Expiré" },
-];
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+
+  return date.toLocaleString("fr-FR");
+}
+
+function formatSize(size: number): string {
+  if (size < 1024) {
+    return `${size} o`;
+  }
+
+  if (size < 1024 * 1024) {
+    return `${(size / 1024).toFixed(1)} Ko`;
+  }
+
+  if (size < 1024 * 1024 * 1024) {
+    return `${(size / (1024 * 1024)).toFixed(1)} Mo`;
+  }
+
+  return `${(size / (1024 * 1024 * 1024)).toFixed(1)} Go`;
+}
 
 export default function MySpacePage() {
-  const [expiration, setExpiration] = useState<Key | null>("1d");
-  const [filter, setFilter] = useState<Key>("all");
+  const [files, setFiles] = useState<FileHistoryResponse[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    async function loadFiles() {
+      try {
+        setLoading(true);
+        setError(null);
+        const data = await getMyFiles();
+        setFiles(data);
+      } catch (err) {
+        setError("Impossible de charger l’historique des fichiers.");
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    loadFiles();
+  }, []);
 
   return (
-    <div className="ds-page">
-      <main className="ds-shell">
-        <h1 className="ds-section-title">Components</h1>
+    <main style={{ padding: "2rem" }}>
+      <h1>Mon espace</h1>
+      <h2>Historique des fichiers</h2>
 
-        <div className="ds-grid-2">
-          <section className="ds-stack">
-            <div>
-              <h2>Input Component</h2>
-              <AppTextField
-                label="Mot de passe"
-                placeholder="Optionnel"
-                type="password"
-              />
-            </div>
+      {loading && <p>Chargement de l’historique...</p>}
 
-            <div>
+      {!loading && error && <p role="alert">{error}</p>}
 
+      {!loading && !error && files.length === 0 && (
+        <p>Aucun fichier envoyé pour le moment.</p>
+      )}
 
-              <h2>Select Component</h2>
-              <AppSelect
-      label="Expiration"
-      items={expirationOptions}
-      value={expiration} 
-      onChange={setExpiration}
-    />
-            </div>
-
-            <div>
-              <h2>Button Component</h2>
-              <div className="ds-stack">
-                <div className="ds-row">
-                  <AppButton variant="secondary">Téléverser ↷</AppButton>
-                  <AppButton variant="ghost" isDisabled>
-                    Téléverser ↷
-                  </AppButton>
-                </div>
-
-                <div className="ds-row">
-                  <AppButton variant="primary">Téléverser ↷</AppButton>
-                  <AppButton variant="ghost">Téléverser ↷</AppButton>
-                </div>
-              </div>
-            </div>
-
-            <div>
-              <h2>Switch Component</h2>
-              <AppSegmentedControl
-                items={filterItems}
-                selectedKey={filter}
-                onSelectionChange={setFilter}
-              />
-            </div>
-          </section>
-
-          <section className="ds-stack">
-            <div>
-              <h2>Header Component</h2>
-              <div className="ds-stack">
-                <AppHeader isAuthenticated={false} />
-                <AppHeader isAuthenticated />
-              </div>
-            </div>
-
-            <div>
-              <h2>Callout Component</h2>
-              <div className="ds-stack" style={{ maxWidth: 320 }}>
-                <AppCallout variant="info">Label</AppCallout>
-                <AppCallout variant="warning">Label</AppCallout>
-                <AppCallout variant="danger">Label</AppCallout>
-              </div>
-            </div>
-          </section>
-        </div>
-      </main>
-    </div>
+      {!loading && !error && files.length > 0 && (
+        <table style={{ width: "100%", borderCollapse: "collapse", marginTop: "1rem" }}>
+          <thead>
+            <tr>
+              <th align="left">Nom</th>
+              <th align="left">Taille</th>
+              <th align="left">Date d’envoi</th>
+              <th align="left">Date d’expiration</th>
+              <th align="left">État</th>
+              <th align="left">Protection</th>
+              <th align="left">Lien</th>
+            </tr>
+          </thead>
+          <tbody>
+            {files.map((file) => (
+              <tr key={file.id}>
+                <td>{file.originalFilename}</td>
+                <td>{formatSize(file.size)}</td>
+                <td>{formatDate(file.createdAt)}</td>
+                <td>{formatDate(file.expiresAt)}</td>
+                <td>{file.expired ? "Expiré" : "Valide"}</td>
+                <td>{file.passwordProtected ? "Protégé" : "Non protégé"}</td>
+                <td>
+                  <a
+                    href={file.downloadUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    Ouvrir
+                  </a>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </main>
   );
 }

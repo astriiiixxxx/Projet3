@@ -1,14 +1,16 @@
 package com.datashare.backend.service;
 
 import com.datashare.backend.config.FileStorageProperties;
+import com.datashare.backend.dto.FileHistoryResponse;
 import com.datashare.backend.dto.PublicFileResponse;
 import com.datashare.backend.entity.StoredFile;
+import com.datashare.backend.entity.User;
 import com.datashare.backend.exception.InvalidFilePasswordException;
 import com.datashare.backend.repository.StoredFileRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.ArgumentCaptor;
+import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.core.io.Resource;
 import org.springframework.http.ResponseEntity;
@@ -16,9 +18,9 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -59,7 +61,7 @@ class FileServiceTest {
         assertNotNull(response);
         assertFalse(response.isPasswordProtected());
         assertEquals("document.pdf", response.getOriginalFilename());
-        assertEquals("/api/files/download/token-123", response.getDownloadUrl());
+        assertEquals("http://localhost:5173/download/token-123", response.getDownloadUrl());
     }
 
     @Test
@@ -73,6 +75,61 @@ class FileServiceTest {
 
         assertNotNull(response);
         assertTrue(response.isPasswordProtected());
+    }
+
+    @Test
+    void getMyFiles_shouldReturnHistoryForCurrentOwner() {
+        User owner = new User();
+        owner.setId(1L);
+        owner.setEmail("test@datashare.com");
+
+        StoredFile validFile = new StoredFile();
+        ReflectionTestUtils.setField(validFile, "id", 10L);
+        validFile.setOriginalFilename("document.pdf");
+        validFile.setStoredFilename("stored-document.pdf");
+        validFile.setMimeType("application/pdf");
+        validFile.setSize(1234L);
+        validFile.setDownloadToken("token-123");
+        validFile.setCreatedAt(LocalDateTime.now().minusHours(2));
+        validFile.setExpiresAt(LocalDateTime.now().plusDays(1));
+        validFile.setOwner(owner);
+
+        StoredFile expiredProtectedFile = new StoredFile();
+        ReflectionTestUtils.setField(expiredProtectedFile, "id", 11L);
+        expiredProtectedFile.setOriginalFilename("archive.zip");
+        expiredProtectedFile.setStoredFilename("stored-archive.zip");
+        expiredProtectedFile.setMimeType("application/zip");
+        expiredProtectedFile.setSize(9999L);
+        expiredProtectedFile.setDownloadToken("token-456");
+        expiredProtectedFile.setCreatedAt(LocalDateTime.now().minusDays(5));
+        expiredProtectedFile.setExpiresAt(LocalDateTime.now().minusDays(1));
+        expiredProtectedFile.setPasswordHash("hashed-password");
+        expiredProtectedFile.setOwner(owner);
+
+        when(storedFileRepository.findByOwnerOrderByCreatedAtDesc(owner))
+            .thenReturn(List.of(validFile, expiredProtectedFile));
+
+        List<FileHistoryResponse> response = fileService.getMyFiles(owner);
+
+        assertNotNull(response);
+        assertEquals(2, response.size());
+
+        FileHistoryResponse first = response.get(0);
+        assertEquals(10L, first.getId());
+        assertEquals("document.pdf", first.getOriginalFilename());
+        assertEquals(1234L, first.getSize());
+        assertFalse(first.isExpired());
+        assertFalse(first.isPasswordProtected());
+        assertEquals("token-123", first.getDownloadToken());
+        assertEquals("http://localhost:5173/download/token-123", first.getDownloadUrl());
+
+        FileHistoryResponse second = response.get(1);
+        assertEquals(11L, second.getId());
+        assertEquals("archive.zip", second.getOriginalFilename());
+        assertTrue(second.isExpired());
+        assertTrue(second.isPasswordProtected());
+        assertEquals("token-456", second.getDownloadToken());
+        assertEquals("http://localhost:5173/download/token-456", second.getDownloadUrl());
     }
 
     @Test
@@ -123,7 +180,7 @@ class FileServiceTest {
             () -> fileService.downloadFile("token-123", null)
         );
 
-        assertEquals("Le mot de passe est requis pour télécharger ce fichier.", exception.getMessage());
+        assertEquals("Mot de passe requis.", exception.getMessage());
         verify(fileStorageService, never()).loadAsResource(anyString());
     }
 
@@ -139,7 +196,7 @@ class FileServiceTest {
             () -> fileService.downloadFile("token-123", "   ")
         );
 
-        assertEquals("Le mot de passe est requis pour télécharger ce fichier.", exception.getMessage());
+        assertEquals("Mot de passe requis.", exception.getMessage());
         verify(fileStorageService, never()).loadAsResource(anyString());
     }
 

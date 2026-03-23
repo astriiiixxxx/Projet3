@@ -1,6 +1,7 @@
 package com.datashare.backend.service;
 
 import com.datashare.backend.config.FileStorageProperties;
+import com.datashare.backend.dto.FileHistoryResponse;
 import com.datashare.backend.dto.PublicFileResponse;
 import com.datashare.backend.dto.UploadFileResponse;
 import com.datashare.backend.entity.StoredFile;
@@ -89,8 +90,11 @@ public class FileService {
         );
     }
 
-    public List<StoredFile> getMyFiles(User owner) {
-        return storedFileRepository.findByOwnerOrderByCreatedAtDesc(owner);
+    public List<FileHistoryResponse> getMyFiles(User owner) {
+        return storedFileRepository.findByOwnerOrderByCreatedAtDesc(owner)
+            .stream()
+            .map(this::toFileHistoryResponse)
+            .toList();
     }
 
     public void deleteMyFile(Long fileId, User owner) {
@@ -106,95 +110,95 @@ public class FileService {
     }
 
     public PublicFileResponse getPublicFile(String token) {
-        StoredFile storedFile = getValidStoredFileByToken(token);
+        StoredFile file = storedFileRepository.findByDownloadToken(token)
+            .orElseThrow(() -> new FileNotFoundException("Lien de téléchargement invalide."));
+
+        boolean expired = isExpired(file);
 
         return new PublicFileResponse(
-            storedFile.getOriginalFilename(),
-            storedFile.getMimeType(),
-            storedFile.getSize(),
-            storedFile.getCreatedAt(),
-            storedFile.getExpiresAt(),
-            storedFile.isExpired(),
-            storedFile.isProtected(),
-            "/api/files/download/" + storedFile.getDownloadToken()
+            file.getOriginalFilename(),
+            file.getMimeType(),
+            file.getSize(),
+            file.getCreatedAt(),
+            file.getExpiresAt(),
+            expired,
+            file.isProtected(),
+            publicBaseUrl + "/download/" + file.getDownloadToken()
         );
     }
 
     public ResponseEntity<Resource> downloadFile(String token, String password) {
-        StoredFile storedFile = getValidStoredFileByToken(token);
-        validateDownloadPassword(storedFile, password);
+        StoredFile file = storedFileRepository.findByDownloadToken(token)
+            .orElseThrow(() -> new FileNotFoundException("Lien de téléchargement invalide."));
 
-        Resource resource = fileStorageService.loadAsResource(storedFile.getStoredFilename());
-
-        MediaType mediaType;
-        try {
-            mediaType = storedFile.getMimeType() != null && !storedFile.getMimeType().isBlank()
-                ? MediaType.parseMediaType(storedFile.getMimeType())
-                : MediaType.APPLICATION_OCTET_STREAM;
-        } catch (Exception e) {
-            mediaType = MediaType.APPLICATION_OCTET_STREAM;
+        if (isExpired(file)) {
+            throw new FileExpiredException("Le lien de téléchargement a expiré.");
         }
 
-        ContentDisposition contentDisposition = ContentDisposition.attachment()
-            .filename(storedFile.getOriginalFilename(), StandardCharsets.UTF_8)
-            .build();
+        if (file.isProtected()) {
+            if (password == null || password.isBlank()) {
+                throw new InvalidFilePasswordException("Mot de passe requis.");
+            }
+
+            if (!passwordEncoder.matches(password, file.getPasswordHash())) {
+                throw new InvalidFilePasswordException("Mot de passe invalide.");
+            }
+        }
+
+        Resource resource = fileStorageService.loadAsResource(file.getStoredFilename());
+
+        MediaType mediaType = resolveMediaType(file.getMimeType());
+
+        String contentDisposition = ContentDisposition.attachment()
+            .filename(file.getOriginalFilename(), StandardCharsets.UTF_8)
+            .build()
+            .toString();
 
         return ResponseEntity.ok()
             .contentType(mediaType)
-            .contentLength(storedFile.getSize())
-            .header(HttpHeaders.CONTENT_DISPOSITION, contentDisposition.toString())
+            .header(HttpHeaders.CONTENT_DISPOSITION, contentDisposition)
             .body(resource);
     }
 
-    private void validateDownloadPassword(StoredFile storedFile, String password) {
-        if (!storedFile.isProtected()) {
-            return;
-        }
-
-        if (password == null || password.isBlank()) {
-            throw new InvalidFilePasswordException("Le mot de passe est requis pour télécharger ce fichier.");
-        }
-
-        if (!passwordEncoder.matches(password, storedFile.getPasswordHash())) {
-            throw new InvalidFilePasswordException("Mot de passe invalide.");
-        }
+    private FileHistoryResponse toFileHistoryResponse(StoredFile file) {
+        return new FileHistoryResponse(
+            file.getId(),
+            file.getOriginalFilename(),
+            file.getSize(),
+            file.getCreatedAt(),
+            file.getExpiresAt(),
+            isExpired(file),
+            file.isProtected(),
+            file.getDownloadToken(),
+            publicBaseUrl + "/download/" + file.getDownloadToken()
+        );
     }
 
-    private StoredFile getValidStoredFileByToken(String token) {
-        if (token == null || token.isBlank()) {
-            throw new FileNotFoundException("Lien de téléchargement invalide.");
-        }
-
-        StoredFile storedFile = storedFileRepository.findByDownloadToken(token)
-            .orElseThrow(() -> new FileNotFoundException("Aucun fichier trouvé pour ce lien."));
-
-        if (storedFile.getExpiresAt() != null && storedFile.getExpiresAt().isBefore(LocalDateTime.now())) {
-            throw new FileExpiredException("Ce lien de téléchargement a expiré.");
-        }
-
-        return storedFile;
+    private boolean isExpired(StoredFile file) {
+        return file.getExpiresAt() != null && file.getExpiresAt().isBefore(LocalDateTime.now());
     }
 
     private void validateFile(MultipartFile file) {
         if (file == null || file.isEmpty()) {
-            throw new RuntimeException("Le fichier est obligatoire.");
+            throw new IllegalArgumentException("Le fichier est obligatoire.");
         }
 
         if (file.getSize() > properties.getMaxSizeBytes()) {
-            throw new RuntimeException("Le fichier dépasse la taille maximale autorisée.");
+            throw new IllegalArgumentException("Le fichier dépasse la taille maximale autorisée.");
         }
 
-        String originalFilename = file.getOriginalFilename();
-        String extension = getExtension(originalFilename).toLowerCase();
+        String filename = file.getOriginalFilename();
+        String lowercaseName = filename == null ? "" : filename.toLowerCase();
 
-        if (FORBIDDEN_EXTENSIONS.contains(extension)) {
-            throw new RuntimeException("Ce type de fichier est interdit.");
+        boolean forbidden = FORBIDDEN_EXTENSIONS.stream().anyMatch(lowercaseName::endsWith);
+        if (forbidden) {
+            throw new IllegalArgumentException("Ce type de fichier est interdit.");
         }
     }
 
     private void validatePassword(String password) {
-        if (password != null && !password.isBlank() && password.length() < 6) {
-            throw new RuntimeException("Le mot de passe doit contenir au moins 6 caractères.");
+        if (password != null && !password.isBlank() && password.trim().length() < 6) {
+            throw new IllegalArgumentException("Le mot de passe doit contenir au moins 6 caractères.");
         }
     }
 
@@ -204,16 +208,21 @@ public class FileService {
         }
 
         if (expirationDays < 1 || expirationDays > properties.getMaxExpirationDays()) {
-            throw new RuntimeException("La durée d'expiration doit être comprise entre 1 et 7 jours.");
+            throw new IllegalArgumentException("La durée d'expiration doit être comprise entre 1 et 7 jours.");
         }
 
         return expirationDays;
     }
 
-    private String getExtension(String filename) {
-        if (filename == null || !filename.contains(".")) {
-            return "";
+    private MediaType resolveMediaType(String mimeType) {
+        if (mimeType == null || mimeType.isBlank()) {
+            return MediaType.APPLICATION_OCTET_STREAM;
         }
-        return filename.substring(filename.lastIndexOf('.'));
+
+        try {
+            return MediaType.parseMediaType(mimeType);
+        } catch (Exception e) {
+            return MediaType.APPLICATION_OCTET_STREAM;
+        }
     }
 }

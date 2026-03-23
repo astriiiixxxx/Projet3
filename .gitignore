@@ -31,3 +31,5 @@ build/
 # Mac
 .AppleDouble
 .LSOverride
+
+backend/uploads/
