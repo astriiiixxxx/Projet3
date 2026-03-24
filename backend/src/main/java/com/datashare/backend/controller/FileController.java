@@ -6,13 +6,12 @@ import com.datashare.backend.dto.UploadFileResponse;
 import com.datashare.backend.entity.User;
 import com.datashare.backend.repository.UserRepository;
 import com.datashare.backend.service.FileService;
+import java.util.List;
 import org.springframework.core.io.Resource;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
-
-import java.util.List;
 
 @RestController
 @RequestMapping("/api/files")
@@ -38,10 +37,30 @@ public class FileController {
         return ResponseEntity.ok(response);
     }
 
+    @PostMapping(value = "/anonymous", consumes = "multipart/form-data")
+    public ResponseEntity<UploadFileResponse> uploadAnonymousFile(
+        @RequestParam("file") MultipartFile file,
+        @RequestParam(value = "expirationDays", required = false) Integer expirationDays,
+        @RequestParam(value = "password", required = false) String password
+    ) {
+        UploadFileResponse response = fileService.upload(file, expirationDays, password, null);
+        return ResponseEntity.ok(response);
+    }
+
     @GetMapping
     public ResponseEntity<List<FileHistoryResponse>> getMyFiles(Authentication authentication) {
         User currentUser = getCurrentUser(authentication);
         return ResponseEntity.ok(fileService.getMyFiles(currentUser));
+    }
+
+    @DeleteMapping("/{fileId}")
+    public ResponseEntity<Void> deleteMyFile(
+        @PathVariable Long fileId,
+        Authentication authentication
+    ) {
+        User currentUser = getCurrentUser(authentication);
+        fileService.deleteMyFile(fileId, currentUser);
+        return ResponseEntity.noContent().build();
     }
 
     @GetMapping("/public/{token}")

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { getMyFiles } from "../services/fileApi";
+import { deleteMyFile, getMyFiles } from "../services/fileApi";
 import type { FileHistoryResponse } from "../types/file";
 
 function formatDate(value: string): string {
@@ -31,6 +31,7 @@ function formatSize(size: number): string {
 export default function MySpacePage() {
   const [files, setFiles] = useState<FileHistoryResponse[]>([]);
   const [loading, setLoading] = useState(true);
+  const [deletingId, setDeletingId] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -49,6 +50,25 @@ export default function MySpacePage() {
 
     loadFiles();
   }, []);
+
+  async function handleDelete(fileId: number) {
+    const confirmed = window.confirm("Voulez-vous vraiment supprimer ce fichier ?");
+
+    if (!confirmed) {
+      return;
+    }
+
+    try {
+      setDeletingId(fileId);
+      setError(null);
+      await deleteMyFile(fileId);
+      setFiles((currentFiles) => currentFiles.filter((file) => file.id !== fileId));
+    } catch (err) {
+      setError("Impossible de supprimer ce fichier.");
+    } finally {
+      setDeletingId(null);
+    }
+  }
 
   return (
     <main style={{ padding: "2rem" }}>
@@ -74,6 +94,7 @@ export default function MySpacePage() {
               <th align="left">État</th>
               <th align="left">Protection</th>
               <th align="left">Lien</th>
+              <th align="left">Action</th>
             </tr>
           </thead>
           <tbody>
@@ -93,6 +114,15 @@ export default function MySpacePage() {
                   >
                     Ouvrir
                   </a>
+                </td>
+                <td>
+                  <button
+                    type="button"
+                    onClick={() => handleDelete(file.id)}
+                    disabled={deletingId === file.id}
+                  >
+                    {deletingId === file.id ? "Suppression..." : "Supprimer"}
+                  </button>
                 </td>
               </tr>
             ))}

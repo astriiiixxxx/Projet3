@@ -1,10 +1,11 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { UploadForm } from "./UploadForm";
-import { uploadFile } from "../../services/fileApi";
+import { uploadAnonymousFile, uploadFile } from "../../services/fileApi";
 
 vi.mock("../../services/fileApi", () => ({
   uploadFile: vi.fn(),
+  uploadAnonymousFile: vi.fn(),
 }));
 
 describe("UploadForm", () => {
@@ -12,11 +13,11 @@ describe("UploadForm", () => {
     vi.clearAllMocks();
   });
 
-  it("affiche le formulaire d'upload", () => {
-    render(<UploadForm />);
+  it("affiche le formulaire d'upload anonyme", () => {
+    render(<UploadForm anonymous />);
 
     expect(
-      screen.getByRole("heading", { name: /envoyer un fichier/i })
+      screen.getByRole("heading", { name: /envoyer un fichier anonymement/i })
     ).toBeInTheDocument();
 
     expect(screen.getByLabelText(/fichier/i)).toBeInTheDocument();
@@ -28,28 +29,28 @@ describe("UploadForm", () => {
   });
 
   it("affiche une erreur si aucun fichier n'est sélectionné", async () => {
-    render(<UploadForm />);
+    render(<UploadForm anonymous />);
 
     fireEvent.click(screen.getByRole("button", { name: /uploader/i }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent(
       /sélectionne un fichier/i
     );
-    expect(uploadFile).not.toHaveBeenCalled();
+    expect(uploadAnonymousFile).not.toHaveBeenCalled();
   });
 
-  it("upload le fichier et affiche le résultat", async () => {
-    vi.mocked(uploadFile).mockResolvedValue({
+  it("upload le fichier anonymement et affiche le résultat", async () => {
+    vi.mocked(uploadAnonymousFile).mockResolvedValue({
       id: 1,
       originalFilename: "test.pdf",
       downloadToken: "abc123",
-      downloadUrl: "http://localhost:3000/download/abc123",
+      downloadUrl: "http://localhost:5173/download/abc123",
       createdAt: "2026-03-20T10:00:00",
       expiresAt: "2026-03-27T10:00:00",
       passwordProtected: false,
     });
 
-    render(<UploadForm />);
+    render(<UploadForm anonymous />);
 
     const file = new File(["hello"], "test.pdf", { type: "application/pdf" });
 
@@ -68,7 +69,7 @@ describe("UploadForm", () => {
     fireEvent.click(screen.getByRole("button", { name: /uploader/i }));
 
     await waitFor(() => {
-      expect(uploadFile).toHaveBeenCalledWith({
+      expect(uploadAnonymousFile).toHaveBeenCalledWith({
         file,
         expirationDays: 5,
         password: "secret123",
@@ -79,12 +80,38 @@ describe("UploadForm", () => {
     expect(screen.getByText(/test\.pdf/i)).toBeInTheDocument();
     expect(screen.getByRole("link")).toHaveAttribute(
       "href",
-      "http://localhost:3000/download/abc123"
+      "http://localhost:5173/download/abc123"
     );
   });
 
+  it("utilise uploadFile quand anonymous vaut false", async () => {
+    vi.mocked(uploadFile).mockResolvedValue({
+      id: 2,
+      originalFilename: "private.pdf",
+      downloadToken: "secure123",
+      downloadUrl: "http://localhost:5173/download/secure123",
+      createdAt: "2026-03-20T10:00:00",
+      expiresAt: "2026-03-27T10:00:00",
+      passwordProtected: true,
+    });
+
+    render(<UploadForm anonymous={false} />);
+
+    const file = new File(["hello"], "private.pdf", { type: "application/pdf" });
+
+    fireEvent.change(screen.getByLabelText(/fichier/i), {
+      target: { files: [file] },
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: /uploader/i }));
+
+    await waitFor(() => {
+      expect(uploadFile).toHaveBeenCalled();
+    });
+  });
+
   it("affiche le message d'erreur backend", async () => {
-    vi.mocked(uploadFile).mockRejectedValue({
+    vi.mocked(uploadAnonymousFile).mockRejectedValue({
       response: {
         data: {
           message: "Ce type de fichier est interdit.",
@@ -92,7 +119,7 @@ describe("UploadForm", () => {
       },
     });
 
-    render(<UploadForm />);
+    render(<UploadForm anonymous />);
 
     const file = new File(["hello"], "virus.exe", {
       type: "application/octet-stream",
@@ -120,14 +147,14 @@ describe("UploadForm", () => {
       passwordProtected: boolean;
     }) => void;
 
-    vi.mocked(uploadFile).mockImplementation(
+    vi.mocked(uploadAnonymousFile).mockImplementation(
       () =>
         new Promise((resolve) => {
           resolvePromise = resolve;
         })
     );
 
-    render(<UploadForm />);
+    render(<UploadForm anonymous />);
 
     const file = new File(["hello"], "test.pdf", { type: "application/pdf" });
 
@@ -145,7 +172,7 @@ describe("UploadForm", () => {
       id: 1,
       originalFilename: "test.pdf",
       downloadToken: "abc123",
-      downloadUrl: "http://localhost:3000/download/abc123",
+      downloadUrl: "http://localhost:5173/download/abc123",
       createdAt: "2026-03-20T10:00:00",
       expiresAt: "2026-03-27T10:00:00",
       passwordProtected: false,

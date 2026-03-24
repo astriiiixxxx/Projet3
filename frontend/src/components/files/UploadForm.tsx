@@ -1,9 +1,13 @@
 import { useState } from "react";
 import type React from "react";
 import type { UploadFileResponse } from "../../types/file";
-import { uploadFile } from "../../services/fileApi";
+import { uploadAnonymousFile, uploadFile } from "../../services/fileApi";
 
-export function UploadForm() {
+type UploadFormProps = {
+  anonymous?: boolean;
+};
+
+export function UploadForm({ anonymous = true }: UploadFormProps) {
   const [file, setFile] = useState<File | null>(null);
   const [expirationDays, setExpirationDays] = useState(7);
   const [password, setPassword] = useState("");
@@ -11,7 +15,7 @@ export function UploadForm() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
-  async function handleSubmit(e: React.SubmitEvent<HTMLFormElement>) {
+  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setError("");
     setResult(null);
@@ -24,11 +28,17 @@ export function UploadForm() {
     try {
       setLoading(true);
 
-      const data = await uploadFile({
-        file,
-        expirationDays,
-        password: password.trim() || undefined,
-      });
+      const data = anonymous
+        ? await uploadAnonymousFile({
+            file,
+            expirationDays,
+            password: password.trim() || undefined,
+          })
+        : await uploadFile({
+            file,
+            expirationDays,
+            password: password.trim() || undefined,
+          });
 
       setResult(data);
       setPassword("");
@@ -41,7 +51,7 @@ export function UploadForm() {
 
   return (
     <div>
-      <h2>Envoyer un fichier</h2>
+      <h2>{anonymous ? "Envoyer un fichier anonymement" : "Envoyer un fichier"}</h2>
 
       <form onSubmit={handleSubmit}>
         <div>

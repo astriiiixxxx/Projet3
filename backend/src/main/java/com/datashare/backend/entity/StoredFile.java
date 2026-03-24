@@ -35,8 +35,8 @@ public class StoredFile {
     @Column(name = "expires_at", nullable = false)
     private LocalDateTime expiresAt;
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "owner_id", nullable = false)
+    @ManyToOne(fetch = FetchType.LAZY, optional = true)
+    @JoinColumn(name = "owner_id", nullable = true)
     private User owner;
 
     public StoredFile() {

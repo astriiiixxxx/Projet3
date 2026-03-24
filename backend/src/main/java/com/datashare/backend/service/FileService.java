@@ -10,21 +10,21 @@ import com.datashare.backend.exception.FileExpiredException;
 import com.datashare.backend.exception.FileNotFoundException;
 import com.datashare.backend.exception.InvalidFilePasswordException;
 import com.datashare.backend.repository.StoredFileRepository;
+import java.nio.charset.StandardCharsets;
+import java.time.LocalDateTime;
+import java.util.List;
+import java.util.Set;
+import java.util.UUID;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.Resource;
 import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
-
-import java.nio.charset.StandardCharsets;
-import java.time.LocalDateTime;
-import java.util.List;
-import java.util.Set;
-import java.util.UUID;
 
 @Service
 public class FileService {
@@ -99,10 +99,10 @@ public class FileService {
 
     public void deleteMyFile(Long fileId, User owner) {
         StoredFile file = storedFileRepository.findById(fileId)
-            .orElseThrow(() -> new RuntimeException("Fichier introuvable."));
+            .orElseThrow(() -> new FileNotFoundException("Fichier introuvable."));
 
-        if (!file.getOwner().getId().equals(owner.getId())) {
-            throw new RuntimeException("Accès interdit à ce fichier.");
+        if (file.getOwner() == null || !file.getOwner().getId().equals(owner.getId())) {
+            throw new AccessDeniedException("Accès interdit à ce fichier.");
         }
 
         fileStorageService.delete(file.getStoredFilename());
