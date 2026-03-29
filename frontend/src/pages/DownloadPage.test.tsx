@@ -38,7 +38,9 @@ describe("DownloadPage", () => {
 
     renderDownloadPage();
 
-    expect(await screen.findByText(/document\.pdf/i)).toBeInTheDocument();
+    expect(
+      await screen.findByText(/document\.pdf/i)
+    ).toBeInTheDocument();
     expect(screen.getByLabelText(/mot de passe/i)).toBeInTheDocument();
   });
 
@@ -56,7 +58,9 @@ describe("DownloadPage", () => {
 
     renderDownloadPage();
 
-    expect(await screen.findByText(/document\.pdf/i)).toBeInTheDocument();
+    expect(
+      await screen.findByText(/document\.pdf/i)
+    ).toBeInTheDocument();
     expect(screen.queryByLabelText(/mot de passe/i)).not.toBeInTheDocument();
   });
 

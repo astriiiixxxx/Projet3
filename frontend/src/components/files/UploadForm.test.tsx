@@ -8,30 +8,56 @@ vi.mock("../../services/fileApi", () => ({
   uploadAnonymousFile: vi.fn(),
 }));
 
+const mockUploadResponse = {
+  id: 1,
+  originalFilename: "test.pdf",
+  downloadToken: "abc123",
+  downloadUrl: "http://localhost:5173/download/abc123",
+  createdAt: "2026-03-20T10:00:00",
+  expiresAt: "2026-03-27T10:00:00",
+  passwordProtected: false,
+};
+
 describe("UploadForm", () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
-  it("affiche le formulaire d'upload anonyme", () => {
+  it("affiche le formulaire avec le sélecteur de fichier au premier rendu", () => {
     render(<UploadForm anonymous />);
 
     expect(
-      screen.getByRole("heading", { name: /envoyer un fichier anonymement/i })
+      screen.getByRole("heading", { name: /ajouter un fichier/i })
     ).toBeInTheDocument();
 
-    expect(screen.getByLabelText(/fichier/i)).toBeInTheDocument();
-    expect(screen.getByLabelText(/expiration \(jours\)/i)).toBeInTheDocument();
-    expect(screen.getByLabelText(/mot de passe optionnel/i)).toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: /uploader/i })
+      screen.getByRole("button", { name: /sélectionner un fichier/i })
+    ).toBeInTheDocument();
+    expect(screen.getByLabelText(/mot de passe/i)).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /^téléverser$/i })
     ).toBeInTheDocument();
   });
 
-  it("affiche une erreur si aucun fichier n'est sélectionné", async () => {
+  it("affiche le fichier sélectionné après pick", () => {
     render(<UploadForm anonymous />);
 
-    fireEvent.click(screen.getByRole("button", { name: /uploader/i }));
+    const file = new File(["hello"], "test.pdf", { type: "application/pdf" });
+
+    fireEvent.change(screen.getByLabelText(/fichier/i), {
+      target: { files: [file] },
+    });
+
+    expect(screen.getByText("test.pdf")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /changer/i })
+    ).toBeInTheDocument();
+  });
+
+  it("affiche une erreur si on téléverse sans fichier", async () => {
+    render(<UploadForm anonymous />);
+
+    fireEvent.click(screen.getByRole("button", { name: /^téléverser$/i }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent(
       /sélectionne un fichier/i
@@ -39,16 +65,8 @@ describe("UploadForm", () => {
     expect(uploadAnonymousFile).not.toHaveBeenCalled();
   });
 
-  it("upload le fichier anonymement et affiche le résultat", async () => {
-    vi.mocked(uploadAnonymousFile).mockResolvedValue({
-      id: 1,
-      originalFilename: "test.pdf",
-      downloadToken: "abc123",
-      downloadUrl: "http://localhost:5173/download/abc123",
-      createdAt: "2026-03-20T10:00:00",
-      expiresAt: "2026-03-27T10:00:00",
-      passwordProtected: false,
-    });
+  it("upload le fichier anonymement et affiche le succès avec lien", async () => {
+    vi.mocked(uploadAnonymousFile).mockResolvedValue(mockUploadResponse);
 
     render(<UploadForm anonymous />);
 
@@ -58,55 +76,56 @@ describe("UploadForm", () => {
       target: { files: [file] },
     });
 
-    fireEvent.change(screen.getByLabelText(/expiration \(jours\)/i), {
-      target: { value: "5" },
-    });
-
-    fireEvent.change(screen.getByLabelText(/mot de passe optionnel/i), {
+    fireEvent.change(screen.getByLabelText(/mot de passe/i), {
       target: { value: "secret123" },
     });
 
-    fireEvent.click(screen.getByRole("button", { name: /uploader/i }));
+    fireEvent.click(screen.getByRole("button", { name: /^téléverser$/i }));
 
     await waitFor(() => {
       expect(uploadAnonymousFile).toHaveBeenCalledWith({
         file,
-        expirationDays: 5,
+        expirationDays: 7,
         password: "secret123",
       });
     });
 
-    expect(await screen.findByText(/fichier envoyé/i)).toBeInTheDocument();
-    expect(screen.getByText(/test\.pdf/i)).toBeInTheDocument();
-    expect(screen.getByRole("link")).toHaveAttribute(
-      "href",
-      "http://localhost:5173/download/abc123"
-    );
+    expect(
+      await screen.findByText(/félicitations, ton fichier sera conservé/i)
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: /localhost:5173\/download\/abc123/i })
+    ).toHaveAttribute("href", "http://localhost:5173/download/abc123");
+    expect(
+      screen.getByRole("button", { name: /copier le lien/i })
+    ).toBeInTheDocument();
   });
 
   it("utilise uploadFile quand anonymous vaut false", async () => {
     vi.mocked(uploadFile).mockResolvedValue({
+      ...mockUploadResponse,
       id: 2,
       originalFilename: "private.pdf",
       downloadToken: "secure123",
       downloadUrl: "http://localhost:5173/download/secure123",
-      createdAt: "2026-03-20T10:00:00",
-      expiresAt: "2026-03-27T10:00:00",
       passwordProtected: true,
     });
 
     render(<UploadForm anonymous={false} />);
 
-    const file = new File(["hello"], "private.pdf", { type: "application/pdf" });
+    const file = new File(["hello"], "private.pdf", {
+      type: "application/pdf",
+    });
 
     fireEvent.change(screen.getByLabelText(/fichier/i), {
       target: { files: [file] },
     });
 
-    fireEvent.click(screen.getByRole("button", { name: /uploader/i }));
+    fireEvent.click(screen.getByRole("button", { name: /^téléverser$/i }));
 
     await waitFor(() => {
       expect(uploadFile).toHaveBeenCalled();
+      expect(uploadAnonymousFile).not.toHaveBeenCalled();
     });
   });
 
@@ -129,7 +148,7 @@ describe("UploadForm", () => {
       target: { files: [file] },
     });
 
-    fireEvent.click(screen.getByRole("button", { name: /uploader/i }));
+    fireEvent.click(screen.getByRole("button", { name: /^téléverser$/i }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent(
       /ce type de fichier est interdit/i
@@ -137,15 +156,7 @@ describe("UploadForm", () => {
   });
 
   it("affiche l'état loading pendant l'envoi", async () => {
-    let resolvePromise!: (value: {
-      id: number;
-      originalFilename: string;
-      downloadToken: string;
-      downloadUrl: string;
-      createdAt: string;
-      expiresAt: string;
-      passwordProtected: boolean;
-    }) => void;
+    let resolvePromise!: (value: typeof mockUploadResponse) => void;
 
     vi.mocked(uploadAnonymousFile).mockImplementation(
       () =>
@@ -162,22 +173,42 @@ describe("UploadForm", () => {
       target: { files: [file] },
     });
 
-    fireEvent.click(screen.getByRole("button", { name: /uploader/i }));
+    fireEvent.click(screen.getByRole("button", { name: /^téléverser$/i }));
 
     expect(
       screen.getByRole("button", { name: /envoi\.\.\./i })
     ).toBeDisabled();
 
-    resolvePromise({
-      id: 1,
-      originalFilename: "test.pdf",
-      downloadToken: "abc123",
-      downloadUrl: "http://localhost:5173/download/abc123",
-      createdAt: "2026-03-20T10:00:00",
-      expiresAt: "2026-03-27T10:00:00",
-      passwordProtected: false,
+    resolvePromise(mockUploadResponse);
+
+    await waitFor(() => {
+      expect(
+        screen.getByText(/félicitations, ton fichier sera conservé/i)
+      ).toBeInTheDocument();
+    });
+  });
+
+  it("permet de retourner au formulaire après un upload réussi", async () => {
+    vi.mocked(uploadAnonymousFile).mockResolvedValue(mockUploadResponse);
+
+    render(<UploadForm anonymous />);
+
+    const file = new File(["hello"], "test.pdf", { type: "application/pdf" });
+
+    fireEvent.change(screen.getByLabelText(/fichier/i), {
+      target: { files: [file] },
     });
 
-    expect(await screen.findByText(/fichier envoyé/i)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /^téléverser$/i }));
+
+    await screen.findByText(/félicitations, ton fichier sera conservé/i);
+
+    fireEvent.click(
+      screen.getByRole("button", { name: /téléverser un autre fichier/i })
+    );
+
+    expect(
+      screen.getByRole("button", { name: /sélectionner un fichier/i })
+    ).toBeInTheDocument();
   });
 });

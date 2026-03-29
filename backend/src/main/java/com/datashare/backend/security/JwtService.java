@@ -54,6 +54,7 @@ public class JwtService {
     }
 
     private Claims extractAllClaims(String token) {
+        // parseSignedClaims vérifie la signature et rejette les JWT expirés (claim exp).
         return Jwts.parser()
             .verifyWith(Keys.hmacShaKeyFor(Decoders.BASE64.decode(jwtSecret)))
             .build()

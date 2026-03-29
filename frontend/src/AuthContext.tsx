@@ -7,7 +7,20 @@ import {
 } from "react";
 import { authApi } from "./api/authApi";
 import { authStorage } from "./authStorage";
+import { isJwtExpiredOrInvalid } from "./jwtUtils";
 import type { LoginRequest, RegisterRequest, User } from "./types/auth";
+
+function getInitialSession(): { token: string | null; user: User | null } {
+  const storedToken = authStorage.getToken();
+  if (!storedToken) {
+    return { token: null, user: null };
+  }
+  if (isJwtExpiredOrInvalid(storedToken)) {
+    authStorage.clear();
+    return { token: null, user: null };
+  }
+  return { token: storedToken, user: authStorage.getUser() };
+}
 
 interface AuthContextValue {
   user: User | null;
@@ -21,8 +34,9 @@ interface AuthContextValue {
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [token, setToken] = useState<string | null>(authStorage.getToken());
-  const [user, setUser] = useState<User | null>(authStorage.getUser());
+  const initial = getInitialSession();
+  const [token, setToken] = useState<string | null>(initial.token);
+  const [user, setUser] = useState<User | null>(initial.user);
 
   const login = async (payload: LoginRequest) => {
     const data = await authApi.login(payload);

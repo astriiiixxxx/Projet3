@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../AuthContext";
+import { AppCallout } from "../components/ui/AppCallout";
+import { AppTextField } from "../components/ui/AppTextField";
 
 export default function LoginPage() {
   const { login } = useAuth();
@@ -11,7 +13,7 @@ export default function LoginPage() {
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
-  const handleSubmit: React.SubmitEventHandler<HTMLFormElement> = async (
+  const handleSubmit: React.FormEventHandler<HTMLFormElement> = async (
     event
   ) => {
     event.preventDefault();
@@ -32,55 +34,71 @@ export default function LoginPage() {
     }
   };
 
-  const handleEmailChange: React.ChangeEventHandler<HTMLInputElement> = (
-    event
-  ) => {
-    setEmail(event.target.value);
-  };
-
-  const handlePasswordChange: React.ChangeEventHandler<HTMLInputElement> = (
-    event
-  ) => {
-    setPassword(event.target.value);
-  };
-
   return (
-    <main>
-      <h1>Connexion</h1>
+    <div className="ds-feature">
+      <header className="ds-feature__hero">
+        <p className="ds-feature__eyebrow">DataShare</p>
+        <h1 className="ds-feature__title">Connexion</h1>
+        <p className="ds-feature__subtitle">
+          Connecte-toi pour retrouver tes fichiers et gérer tes liens.
+        </p>
+      </header>
 
-      <form onSubmit={handleSubmit}>
-        <div>
-          <label htmlFor="email">Email</label>
-          <input
-            id="email"
+      <section className="ds-card" aria-label="Formulaire de connexion">
+        <div className="ds-card__header">
+          <h2 className="ds-card__title">Se connecter</h2>
+          <p className="ds-card__subtitle">
+            Entre tes identifiants pour accéder à ton espace.
+          </p>
+        </div>
+
+        <form className="ds-form" onSubmit={handleSubmit} noValidate>
+          <AppTextField
+            label="Email"
             type="email"
+            autoComplete="email"
+            placeholder="nom@exemple.com"
             value={email}
-            onChange={handleEmailChange}
-            required
+            onChange={setEmail}
+            isRequired
           />
-        </div>
 
-        <div>
-          <label htmlFor="password">Mot de passe</label>
-          <input
-            id="password"
+          <AppTextField
+            label="Mot de passe"
             type="password"
+            autoComplete="current-password"
+            placeholder="Votre mot de passe"
             value={password}
-            onChange={handlePasswordChange}
-            required
+            onChange={setPassword}
+            isRequired
           />
-        </div>
 
-        {error && <p>{error}</p>}
+          {error && (
+            <AppCallout variant="error" announce>
+              {error}
+            </AppCallout>
+          )}
 
-        <button type="submit" disabled={isLoading}>
-          {isLoading ? "Connexion..." : "Se connecter"}
-        </button>
-      </form>
+          <div className="ds-form-actions">
+            <button
+              type="submit"
+              className="app-button app-button--dark app-button--md app-button--full-width"
+              disabled={isLoading}
+            >
+              {isLoading && (
+                <span className="app-button__spinner" aria-hidden="true" />
+              )}
+              <span className="app-button__label">
+                {isLoading ? "Connexion..." : "Se connecter"}
+              </span>
+            </button>
+          </div>
+        </form>
 
-      <p>
-        Pas encore de compte ? <Link to="/register">Créer un compte</Link>
-      </p>
-    </main>
+        <p className="ds-card__footer">
+          Pas encore de compte ? <Link to="/register">Créer un compte</Link>
+        </p>
+      </section>
+    </div>
   );
 }

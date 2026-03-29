@@ -89,6 +89,39 @@ void upload_shouldCreateAnonymousFile_whenOwnerIsNull() {
 }
 
     @Test
+    void upload_shouldPersistOwner_whenAuthenticated() {
+        MockMultipartFile file = new MockMultipartFile(
+            "file",
+            "rapport.pdf",
+            "application/pdf",
+            "hello".getBytes()
+        );
+
+        User owner = new User();
+        owner.setId(42L);
+        owner.setEmail("user@datashare.com");
+
+        when(properties.getMaxSizeBytes()).thenReturn(10_000_000L);
+        when(properties.getMaxExpirationDays()).thenReturn(7);
+        when(fileStorageService.store(file)).thenReturn("stored-rapport.pdf");
+        when(storedFileRepository.save(any(StoredFile.class))).thenAnswer(invocation -> {
+            StoredFile storedFile = invocation.getArgument(0);
+            ReflectionTestUtils.setField(storedFile, "id", 99L);
+            return storedFile;
+        });
+
+        fileService.upload(file, 3, null, owner);
+
+        ArgumentCaptor<StoredFile> captor = ArgumentCaptor.forClass(StoredFile.class);
+        verify(storedFileRepository).save(captor.capture());
+
+        StoredFile savedFile = captor.getValue();
+        assertEquals(owner, savedFile.getOwner());
+        assertEquals(42L, savedFile.getOwner().getId());
+        assertEquals("rapport.pdf", savedFile.getOriginalFilename());
+    }
+
+    @Test
     void getPublicFile_shouldReturnPasswordProtectedFalse_whenFileIsNotProtected() {
         StoredFile storedFile = buildStoredFile(false);
 
