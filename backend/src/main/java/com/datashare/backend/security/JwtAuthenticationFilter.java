@@ -42,7 +42,6 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         if (
             requestPath.equals("/api/auth/login") ||
             requestPath.equals("/api/auth/register") ||
-            requestPath.equals("/api/health") ||
             requestPath.startsWith("/api/files/public/") ||
             requestPath.startsWith("/api/files/download/")
         ) {

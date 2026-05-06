@@ -1,0 +1,15 @@
+DataShare — Lien du dépôt
+
+GitHub :
+https://github.com/astriiiixxxx/Projet3
+
+Contenu du dépôt :
+- Code source complet (frontend React/TypeScript + backend Spring Boot).
+- README détaillé (installation, exécution, configuration).
+- Scripts de déploiement (docker-compose.yml).
+- Plan de suivi qualité et maintenance :
+  * TESTING.md
+  * SECURITY.md
+  * PERF.md
+  * MAINTENANCE.md
+- Documentation technique complète dans docs/.

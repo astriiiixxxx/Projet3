@@ -1,13 +1,8 @@
 package com.datashare.backend.controller;
 
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RestController;
-
-@RestController
-public class HealthController {
-
-    @GetMapping("/api/health")
-    public String health() {
-        return "API backend fonctionne";
-    }
+// Endpoint /api/health retiré — c'était un endpoint de test issu du
+// scaffolding initial du projet. La classe est conservée vide (sans
+// @RestController) pour éviter de casser un build ; ce fichier peut être
+// supprimé lors de la prochaine refactorisation.
+class HealthController {
 }

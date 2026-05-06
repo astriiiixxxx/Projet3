@@ -1,0 +1,16 @@
+digraph archi_globale {
+	bgcolor="#FBF7F4" fontname=Helvetica margin=0.2 nodesep=0.6 pad=0.3 rankdir=LR ranksep=1.0
+	node [fontname=Helvetica fontsize=11 penwidth=1.2 shape=box style="filled,rounded"]
+	edge [arrowsize=0.8 color="#B85042" fontname=Helvetica fontsize=9 penwidth=1.5]
+	user [label="Utilisateur
+(Navigateur)" color="#E2D9D2" fillcolor="#FFFFFF" fontcolor="#1F1B1A"]
+	front [label=<<b>FRONTEND</b><br/>React 19<br/>TypeScript · Vite<br/>Axios · React Router<br/>react-aria-components> color="#B85042" fillcolor="#FBE3D7" fontcolor="#B85042" margin=0.18 shape=box3d]
+	api [label=<<b>API REST</b><br/>Spring Boot 3<br/>Spring Security · JPA<br/>JJWT (HMAC-SHA256)> color="#2F3C7E" fillcolor="#2F3C7E" fontcolor="#FFFFFF" margin=0.18 shape=box3d]
+	db [label=<<b>BASE DE DONNÉES</b><br/>PostgreSQL 16<br/>users · stored_files> color="#1F1B1A" fillcolor="#1F1B1A" fontcolor="#FFFFFF" margin=0.15 shape=cylinder]
+	storage [label=<<b>STOCKAGE FICHIERS</b><br/>Filesystem local<br/>backend/uploads/&lt;UUID&gt;> color="#A7BEAE" fillcolor="#A7BEAE" fontcolor="#1F1B1A" margin=0.15 shape=folder]
+	user -> front [label=" HTTPS " fontcolor="#75695F"]
+	front -> api [label=" REST + JSON
+ JWT Bearer " dir=both fontcolor="#75695F"]
+	api -> db [label=" JDBC " dir=both fontcolor="#75695F"]
+	api -> storage [label=" I/O " dir=both fontcolor="#75695F"]
+}
